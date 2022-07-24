@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/gorilla/mux"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/handlers"
@@ -26,10 +27,13 @@ func main() {
 		logger.Fatal("could not init settings", zap.Error(err))
 	}
 
-	ytdlClient := ytdl.New(logger)
+	lockMap := make(map[string]*sync.Mutex, len(settings.Playlists))
+
+	ytdlClient := ytdl.New(logger, lockMap)
 
 	c := cron.New()
 	for _, playlist := range settings.Playlists {
+		lockMap[playlist] = &sync.Mutex{}
 		logger.Info("adding playlist to cron", zap.String("playlist", playlist))
 		_, err := c.AddFunc(settings.CronString, ytdlClient.Run(playlist))
 		if err != nil {
