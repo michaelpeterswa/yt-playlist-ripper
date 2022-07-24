@@ -7,7 +7,8 @@ import (
 )
 
 type Settings struct {
-	Playlists []string `json:"playlists" yaml:"playlists"`
+	CronString string   `json:"cron_string" yaml:"cron_string"`
+	Playlists  []string `json:"playlists" yaml:"playlists"`
 }
 
 func InitSettings() (*Settings, error) {

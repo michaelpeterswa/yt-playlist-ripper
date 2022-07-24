@@ -31,7 +31,7 @@ func main() {
 	c := cron.New()
 	for _, playlist := range settings.Playlists {
 		logger.Info("adding playlist to cron", zap.String("playlist", playlist))
-		_, err := c.AddFunc("@hourly", ytdlClient.Run(playlist))
+		_, err := c.AddFunc(settings.CronString, ytdlClient.Run(playlist))
 		if err != nil {
 			logger.Error("could not add cron job", zap.Error(err))
 		}
