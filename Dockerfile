@@ -1,15 +1,20 @@
-# -=-=-=-=-=-=- Compile Image -=-=-=-=-=-=-
+# -=-=-=-=-=-=- Compile Go Image -=-=-=-=-=-=-
 
 FROM golang:1 AS stage-compile
 
 WORKDIR /go/src/app
 COPY . .
 
-RUN go get -d -v ./... && CGO_ENABLED=0 GOOS=linux go build ./cmd/go-start
+RUN go get -d -v ./... && CGO_ENABLED=0 GOOS=linux go build ./cmd/yt-playlist-ripper
 
-# -=-=-=-=- Final Distroless Image -=-=-=-=-
+# -=-=-=-=- Final Python Image -=-=-=-=-
 
-FROM gcr.io/distroless/static-debian11:latest-amd64 as stage-final
+FROM python:alpine as stage-final
 
-COPY --from=stage-compile /go/src/app/go-start /
-CMD ["/go-start"]
+RUN apk update && \
+    apk add --no-cache curl=7.83.1-r2 ffmpeg=5.0.1-r1 && \
+    curl -L https://yt-dl.org/downloads/latest/youtube-dl -o /usr/local/bin/youtube-dl && \
+    chmod a+rx /usr/local/bin/youtube-dl
+
+COPY --from=stage-compile /go/src/app/yt-playlist-ripper /
+CMD ["/yt-playlist-ripper"]
