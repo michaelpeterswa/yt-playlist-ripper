@@ -33,7 +33,7 @@ func main() {
 
 	c := cron.New()
 	for _, playlist := range settings.Playlists {
-		lockMap[playlist] = &sync.Mutex{}
+		ytdlClient.LockMap[playlist] = &sync.Mutex{}
 		logger.Info("adding playlist to cron", zap.String("playlist", playlist))
 		_, err := c.AddFunc(settings.CronString, ytdlClient.Run(playlist))
 		if err != nil {

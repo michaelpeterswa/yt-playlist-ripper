@@ -10,16 +10,16 @@ import (
 
 type YTDLClient struct {
 	logger  *zap.Logger
-	lockMap map[string]*sync.Mutex
+	LockMap map[string]*sync.Mutex
 }
 
 func New(logger *zap.Logger, lockMap map[string]*sync.Mutex) *YTDLClient {
-	return &YTDLClient{logger: logger, lockMap: lockMap}
+	return &YTDLClient{logger: logger, LockMap: lockMap}
 }
 
 func (ytdl *YTDLClient) Run(playlist string) func() {
 	return func() {
-		ytdl.lockMap[playlist].Lock()
+		ytdl.LockMap[playlist].Lock()
 		zapWriter := zapio.Writer{
 			Log:   ytdl.logger.With(zap.String("from", "ytdl")),
 			Level: zap.InfoLevel,
@@ -42,6 +42,6 @@ func (ytdl *YTDLClient) Run(playlist string) func() {
 		if err != nil {
 			ytdl.logger.Error("yt-playlist-ripper failed to exit successfully", zap.Error(err))
 		}
-		ytdl.lockMap[playlist].Unlock()
+		ytdl.LockMap[playlist].Unlock()
 	}
 }
