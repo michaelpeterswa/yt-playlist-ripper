@@ -8,27 +8,28 @@ import (
 	"go.uber.org/zap/zapio"
 )
 
-type YTDLClient struct {
+type YTDLPClient struct {
 	logger  *zap.Logger
 	LockMap map[string]*sync.Mutex
 }
 
-func New(logger *zap.Logger, lockMap map[string]*sync.Mutex) *YTDLClient {
-	return &YTDLClient{logger: logger, LockMap: lockMap}
+func New(logger *zap.Logger, lockMap map[string]*sync.Mutex) *YTDLPClient {
+	return &YTDLPClient{logger: logger, LockMap: lockMap}
 }
 
-func (ytdl *YTDLClient) Run(playlist string) func() {
+func (ytdl *YTDLPClient) Run(playlist string) func() {
 	return func() {
 		ytdl.LockMap[playlist].Lock()
 		zapWriter := zapio.Writer{
-			Log:   ytdl.logger.With(zap.String("from", "ytdl")),
+			Log:   ytdl.logger.With(zap.String("from", "ytdlp")),
 			Level: zap.InfoLevel,
 		}
-		ytdlCommand := exec.Command("youtube-dl",
+		ytdlCommand := exec.Command("yt-dlp",
 			"--no-call-home",
 			"--no-progress",
 			"--write-thumbnail",
 			"--yes-playlist",
+			"-S", "height:1080",
 			"-o", "/downloads/%(channel)s/%(title)s",
 			"--download-archive", "/config/archive.txt",
 			playlist)
