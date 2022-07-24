@@ -29,7 +29,7 @@ func (ytdl *YTDLPClient) Run(playlist string) func() {
 			"--no-progress",
 			"--write-thumbnail",
 			"--yes-playlist",
-			"-S", "height:1080",
+			"-f", "'bv[height=1080][ext=mp4]+ba[ext=m4a]'",
 			"-o", "/downloads/%(channel)s/%(title)s",
 			"--download-archive", "/config/archive.txt",
 			playlist)
