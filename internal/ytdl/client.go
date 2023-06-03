@@ -35,6 +35,7 @@ func (ytdl *YTDLPClient) Run(playlist string) func() {
 			"--download-archive", "/config/archive.txt",
 			playlist)
 		ytdlCommand.Stdout = &zapWriter
+		ytdlCommand.Stderr = &zapWriter
 		err := ytdlCommand.Start()
 		if err != nil {
 			ytdl.logger.Error("yt-playlist-ripper failed to run ytdl", zap.Error(err))
