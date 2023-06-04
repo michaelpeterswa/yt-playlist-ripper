@@ -1,25 +1,37 @@
 package ytdl
 
 import (
+	"fmt"
 	"os/exec"
-	"sync"
 
+	"github.com/michaelpeterswa/yt-playlist-ripper/internal/lockmap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapio"
 )
 
 type YTDLPClient struct {
 	logger  *zap.Logger
-	LockMap map[string]*sync.Mutex
+	LockMap *lockmap.LockMap
 }
 
-func New(logger *zap.Logger, lockMap map[string]*sync.Mutex) *YTDLPClient {
-	return &YTDLPClient{logger: logger, LockMap: lockMap}
+func New(logger *zap.Logger, lockMap *lockmap.LockMap) *YTDLPClient {
+	return &YTDLPClient{logger: logger, LockMap: lockmap.New()}
 }
 
 func (ytdl *YTDLPClient) Run(playlist string) func() {
 	return func() {
-		ytdl.LockMap[playlist].Lock()
+		err := ytdl.LockMap.Lock(playlist)
+		if err != nil {
+			ytdl.logger.Error("failed to acquire lock", zap.Error(err), zap.String("playlist", playlist))
+			return
+		}
+		defer func() {
+			err := ytdl.LockMap.Unlock(playlist)
+			if err != nil {
+				ytdl.logger.Error("failed to release lock", zap.Error(err), zap.String("playlist", playlist))
+			}
+		}()
+
 		zapWriter := zapio.Writer{
 			Log:   ytdl.logger.With(zap.String("from", "ytdlp")),
 			Level: zap.InfoLevel,
@@ -33,7 +45,7 @@ func (ytdl *YTDLPClient) Run(playlist string) func() {
 			"--recode-video", "mp4",
 			"-o", "/downloads/%(channel)s/%(title)s",
 			"--download-archive", "/config/archive.txt",
-			playlist)
+			fmt.Sprintf("https://www.youtube.com/playlist?list=%s", playlist))
 		ytdlCommand.Stdout = &zapWriter
 		ytdlCommand.Stderr = &zapWriter
 		err := ytdlCommand.Start()
@@ -45,6 +57,5 @@ func (ytdl *YTDLPClient) Run(playlist string) func() {
 		if err != nil {
 			ytdl.logger.Error("yt-playlist-ripper failed to exit successfully", zap.Error(err))
 		}
-		ytdl.LockMap[playlist].Unlock()
 	}
 }
