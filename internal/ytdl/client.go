@@ -48,7 +48,7 @@ func (ytdl *YTDLPClient) Run(playlist string) func() {
 			fmt.Sprintf("https://www.youtube.com/playlist?list=%s", playlist))
 		ytdlCommand.Stdout = &zapWriter
 		ytdlCommand.Stderr = &zapWriter
-		err := ytdlCommand.Start()
+		err = ytdlCommand.Start()
 		if err != nil {
 			ytdl.logger.Error("yt-playlist-ripper failed to run ytdl", zap.Error(err))
 		}
