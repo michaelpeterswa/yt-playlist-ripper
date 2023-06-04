@@ -6,6 +6,9 @@ services:
     build: .
     ports:
       - "8080:8080"
+    environment:
+      YTPR_CRON_STRING: "* * * * *"
+      YTPR_PLAYLIST_LIST: "PLUcjmvZLvmS_vTF8su_eqA6XgCfl88kuV"
     volumes:
       - ./downloads:/downloads
       - ./config:/config

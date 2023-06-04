@@ -3,12 +3,13 @@ package main
 import (
 	"log"
 	"net/http"
-	"sync"
+	"strings"
 
 	"github.com/gorilla/mux"
+	configClient "github.com/michaelpeterswa/yt-playlist-ripper/internal/config"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/handlers"
+	"github.com/michaelpeterswa/yt-playlist-ripper/internal/lockmap"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/logging"
-	"github.com/michaelpeterswa/yt-playlist-ripper/internal/settings"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/ytdl"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/robfig/cron/v3"
@@ -20,22 +21,25 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not acquire zap logger: %s", err.Error())
 	}
-	logger.Info("yt-playlist-ripper init...")
 
-	settings, err := settings.InitSettings()
+	config, err := configClient.Get()
 	if err != nil {
-		logger.Fatal("could not init settings", zap.Error(err))
+		logger.Fatal("could not get config", zap.Error(err))
 	}
 
-	lockMap := make(map[string]*sync.Mutex, len(settings.Playlists))
+	logger.Info("yt-playlist-ripper init...", zap.Strings("playlists", strings.Split(config.String(configClient.PlaylistList), ",")), zap.String("cron", config.String(configClient.CronString)))
 
-	ytdlClient := ytdl.New(logger, lockMap)
+	ytdlClient := ytdl.New(logger, lockmap.New())
 
 	c := cron.New()
-	for _, playlist := range settings.Playlists {
-		ytdlClient.LockMap[playlist] = &sync.Mutex{}
+	for _, playlist := range strings.Split(config.String(configClient.PlaylistList), ",") {
+		err := ytdlClient.LockMap.Add(playlist)
+		if err != nil {
+			logger.Error("could not add playlist to lockmap", zap.Error(err), zap.String("playlist", playlist))
+		}
+
 		logger.Info("adding playlist to cron", zap.String("playlist", playlist))
-		_, err := c.AddFunc(settings.CronString, ytdlClient.Run(playlist))
+		_, err = c.AddFunc(config.String(configClient.CronString), ytdlClient.Run(playlist))
 		if err != nil {
 			logger.Error("could not add cron job", zap.Error(err))
 		}
