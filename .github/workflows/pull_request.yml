@@ -1,12 +1,10 @@
 ---
-on: [pull_request]  # yamllint disable-line rule:truthy
+on: [pull_request] # yamllint disable-line rule:truthy
 name: main
 jobs:
-
   commitlint:
     runs-on: ubuntu-latest
     steps:
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -25,7 +23,6 @@ jobs:
     name: lint
     runs-on: ${{ matrix.os }}
     steps:
-
       - uses: actions/checkout@v3
 
       - name: golangci-lint
@@ -36,7 +33,6 @@ jobs:
   yamllint:
     runs-on: ubuntu-latest
     steps:
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -62,7 +58,6 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-
       - name: Install Go
         uses: actions/setup-go@v2
         with:
