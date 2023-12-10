@@ -36,19 +36,19 @@ func SetDefaults(k *koanf.Koanf) error {
 	}
 
 	if !k.Exists(CronString) {
-		k.Set("cron.string", "0 */12 * * *")
+		_ = k.Set("cron.string", "0 */12 * * *")
 	}
 
 	if !k.Exists("http.port") {
-		k.Set("http.port", "8081")
+		_ = k.Set("http.port", "8081")
 	}
 
 	if !k.Exists("video.quality") {
-		k.Set("video.quality", "height:1080")
+		_ = k.Set("video.quality", "height:1080")
 	}
 
 	if !k.Exists("archive.file") {
-		k.Set("archive.file", "/downloads/archive.txt")
+		_ = k.Set("archive.file", "/downloads/archive.txt")
 	}
 
 	return nil
