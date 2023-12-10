@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -50,8 +51,12 @@ func main() {
 	r.HandleFunc("/healthcheck", handlers.HealthcheckHandler)
 	r.Handle("/metrics", promhttp.Handler())
 	http.Handle("/", r)
-	err = http.ListenAndServe(":8080", nil)
+
+	httpPort := config.String("http.port")
+	logger.Info("starting http server", zap.String("port", httpPort))
+	err = http.ListenAndServe(fmt.Sprintf(":%s", httpPort), nil)
 	if err != nil {
 		logger.Fatal("could not start http server", zap.Error(err))
 	}
+
 }
