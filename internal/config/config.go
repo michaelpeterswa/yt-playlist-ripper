@@ -27,3 +27,29 @@ func Get() (*koanf.Koanf, error) {
 
 	return k, nil
 }
+
+func SetDefaults(k *koanf.Koanf) error {
+	// At a minimum, playlist list is required
+
+	if !k.Exists(PlaylistList) {
+		return fmt.Errorf("playlist list environment variable is required")
+	}
+
+	if !k.Exists(CronString) {
+		_ = k.Set("cron.string", "0 */12 * * *")
+	}
+
+	if !k.Exists("http.port") {
+		_ = k.Set("http.port", "8081")
+	}
+
+	if !k.Exists("video.quality") {
+		_ = k.Set("video.quality", "height:1080")
+	}
+
+	if !k.Exists("archive.file") {
+		_ = k.Set("archive.file", "/downloads/archive.txt")
+	}
+
+	return nil
+}
