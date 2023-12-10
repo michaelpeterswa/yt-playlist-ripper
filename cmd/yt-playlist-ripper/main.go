@@ -27,10 +27,14 @@ func main() {
 	if err != nil {
 		logger.Fatal("could not get config", zap.Error(err))
 	}
+	err = configClient.SetDefaults(config)
+	if err != nil {
+		logger.Fatal("could not set defaults", zap.Error(err))
+	}
 
 	logger.Info("yt-playlist-ripper init...", zap.Strings("playlists", strings.Split(config.String(configClient.PlaylistList), ",")), zap.String("cron", config.String(configClient.CronString)))
 
-	ytdlClient := ytdl.New(logger, lockmap.New())
+	ytdlClient := ytdl.New(logger, lockmap.New(), config.String(config.String("video.quality")), config.String(config.String("archive.file")))
 
 	c := cron.New()
 	for _, playlist := range strings.Split(config.String(configClient.PlaylistList), ",") {

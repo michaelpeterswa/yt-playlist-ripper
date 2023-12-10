@@ -10,12 +10,19 @@ import (
 )
 
 type YTDLPClient struct {
-	logger  *zap.Logger
-	LockMap *lockmap.LockMap
+	logger       *zap.Logger
+	LockMap      *lockmap.LockMap
+	VideoQuality string
+	ArchiveFile  string
 }
 
-func New(logger *zap.Logger, lockMap *lockmap.LockMap) *YTDLPClient {
-	return &YTDLPClient{logger: logger, LockMap: lockmap.New()}
+func New(logger *zap.Logger, lockMap *lockmap.LockMap, videoQuality string, archiveFile string) *YTDLPClient {
+	return &YTDLPClient{
+		logger:       logger,
+		LockMap:      lockmap.New(),
+		VideoQuality: videoQuality,
+		ArchiveFile:  archiveFile,
+	}
 }
 
 func (ytdl *YTDLPClient) Run(playlist string) func() {
@@ -41,10 +48,10 @@ func (ytdl *YTDLPClient) Run(playlist string) func() {
 			"--no-progress",
 			"--write-thumbnail",
 			"--yes-playlist",
-			"-S", "height:1080",
+			"-S", ytdl.VideoQuality,
 			"--recode-video", "mp4",
 			"-o", "/downloads/%(channel)s/%(title)s",
-			"--download-archive", "/config/archive.txt",
+			"--download-archive", ytdl.ArchiveFile,
 			fmt.Sprintf("https://www.youtube.com/playlist?list=%s", playlist))
 		ytdlCommand.Stdout = &zapWriter
 		ytdlCommand.Stderr = &zapWriter
