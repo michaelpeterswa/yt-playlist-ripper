@@ -10,18 +10,20 @@ import (
 )
 
 type YTDLPClient struct {
-	logger       *zap.Logger
-	LockMap      *lockmap.LockMap
-	VideoQuality string
-	ArchiveFile  string
+	logger         *zap.Logger
+	LockMap        *lockmap.LockMap
+	VideoQuality   string
+	ArchiveFile    string
+	OutputTemplate string
 }
 
-func New(logger *zap.Logger, lockMap *lockmap.LockMap, videoQuality string, archiveFile string) *YTDLPClient {
+func New(logger *zap.Logger, lockMap *lockmap.LockMap, videoQuality string, archiveFile string, outputTemplate string) *YTDLPClient {
 	return &YTDLPClient{
-		logger:       logger,
-		LockMap:      lockmap.New(),
-		VideoQuality: videoQuality,
-		ArchiveFile:  archiveFile,
+		logger:         logger,
+		LockMap:        lockmap.New(),
+		VideoQuality:   videoQuality,
+		ArchiveFile:    archiveFile,
+		OutputTemplate: outputTemplate,
 	}
 }
 
@@ -50,14 +52,18 @@ func (ytdl *YTDLPClient) Run(playlist string) func() {
 			"--yes-playlist",
 			"-S", ytdl.VideoQuality,
 			"--recode-video", "mp4",
-			"-o", "/downloads/%(channel)s/%(title)s",
+			"-o", ytdl.OutputTemplate,
 			"--download-archive", ytdl.ArchiveFile,
 			fmt.Sprintf("https://www.youtube.com/playlist?list=%s", playlist))
 		ytdlCommand.Stdout = &zapWriter
 		ytdlCommand.Stderr = &zapWriter
+
+		ytdl.logger.Info("command run", zap.String("command", ytdlCommand.String()))
+
 		err = ytdlCommand.Start()
 		if err != nil {
 			ytdl.logger.Error("yt-playlist-ripper failed to run ytdl", zap.Error(err))
+			return
 		}
 
 		err = ytdlCommand.Wait()

@@ -28,7 +28,7 @@ docker run \
   -e 'YTPR_PLAYLIST_LIST'='PLUcjmvZLvmS8PaBz77N1eFAbJ0cLENSwU' \
   -e 'YTPR_HTTP_PORT'=8081 \
   -p '8081:8081/tcp' \
-  -v '/<folder on your machine>':'/downloads' 'ghcr.io/michaelpeterswa/yt-playlist-ripper:v2.0.2'
+  -v '/<folder on your machine>':'/downloads' 'ghcr.io/michaelpeterswa/yt-playlist-ripper:v2.0.5'
 ```
 
 ## Meta
