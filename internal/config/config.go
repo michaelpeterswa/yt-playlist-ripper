@@ -9,8 +9,13 @@ import (
 )
 
 const (
-	PlaylistList = "playlist.list"
-	CronString   = "cron.string"
+	RunOnStart     = "run.on.start"
+	PlaylistList   = "playlist.list"
+	CronString     = "cron.string"
+	HTTPPort       = "http.port"
+	VideoQuality   = "video.quality"
+	ArchiveFile    = "archive.file"
+	OutputTemplate = "output.template"
 )
 
 func Get() (*koanf.Koanf, error) {
@@ -35,20 +40,28 @@ func SetDefaults(k *koanf.Koanf) error {
 		return fmt.Errorf("playlist list environment variable is required")
 	}
 
+	if !k.Exists(OutputTemplate) {
+		_ = k.Set("output.template", "/downloads/%(playlist)s/%(channel)s/%(title)s")
+	}
+
 	if !k.Exists(CronString) {
 		_ = k.Set("cron.string", "0 */12 * * *")
 	}
 
-	if !k.Exists("http.port") {
+	if !k.Exists(HTTPPort) {
 		_ = k.Set("http.port", "8081")
 	}
 
-	if !k.Exists("video.quality") {
+	if !k.Exists(VideoQuality) {
 		_ = k.Set("video.quality", "height:1080")
 	}
 
-	if !k.Exists("archive.file") {
+	if !k.Exists(ArchiveFile) {
 		_ = k.Set("archive.file", "/downloads/archive.txt")
+	}
+
+	if !k.Exists(RunOnStart) {
+		_ = k.Set("run.on.start", "true")
 	}
 
 	return nil
