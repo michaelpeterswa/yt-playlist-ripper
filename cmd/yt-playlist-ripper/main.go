@@ -1,74 +1,130 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"net/http"
+	"log/slog"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
-	"github.com/gorilla/mux"
+	"alpineworks.io/ootel"
 	configClient "github.com/michaelpeterswa/yt-playlist-ripper/internal/config"
-	"github.com/michaelpeterswa/yt-playlist-ripper/internal/handlers"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/lockmap"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/logging"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/ytdl"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/robfig/cron/v3"
-	"go.uber.org/zap"
+	"go.opentelemetry.io/contrib/instrumentation/host"
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
 )
 
 func main() {
-	logger, err := logging.InitZap()
-	if err != nil {
-		log.Fatalf("could not acquire zap logger: %s", err.Error())
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "error"
 	}
 
-	config, err := configClient.Get()
+	slogLevel, err := logging.LogLevelToSlogLevel(logLevel)
 	if err != nil {
-		logger.Fatal("could not get config", zap.Error(err))
-	}
-	err = configClient.SetDefaults(config)
-	if err != nil {
-		logger.Fatal("could not set defaults", zap.Error(err))
+		log.Fatalf("could not convert log level: %s", err)
 	}
 
-	logger.Info("yt-playlist-ripper init...", zap.Strings("playlists", strings.Split(config.String(configClient.PlaylistList), ",")), zap.String("cron", config.String(configClient.CronString)), zap.String("httpPort", config.String(configClient.HTTPPort)), zap.String("videoQuality", config.String(configClient.VideoQuality)), zap.String("archiveFile", config.String(configClient.ArchiveFile)), zap.String("outputTemplate", config.String(configClient.OutputTemplate)))
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slogLevel,
+	})))
 
-	ytdlClient := ytdl.New(logger, lockmap.New(), config.String(configClient.VideoQuality), config.String(configClient.ArchiveFile), config.String(configClient.OutputTemplate))
+	c, err := configClient.NewConfig()
+	if err != nil {
+		slog.Error("could not create config", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
-	for _, playlist := range strings.Split(config.String(configClient.PlaylistList), ",") {
+	ctx := context.Background()
+
+	exporterType := ootel.ExporterTypePrometheus
+	if c.Local {
+		exporterType = ootel.ExporterTypeOTLPGRPC
+	}
+
+	ootelClient := ootel.NewOotelClient(
+		ootel.WithMetricConfig(
+			ootel.NewMetricConfig(
+				c.MetricsEnabled,
+				exporterType,
+				c.MetricsPort,
+			),
+		),
+		ootel.WithTraceConfig(
+			ootel.NewTraceConfig(
+				c.TracingEnabled,
+				c.TracingSampleRate,
+				c.TracingService,
+				c.TracingVersion,
+			),
+		),
+	)
+
+	shutdown, err := ootelClient.Init(ctx)
+	if err != nil {
+		slog.Error("could not create ootel client", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	err = runtime.Start(runtime.WithMinimumReadMemStatsInterval(5 * time.Second))
+	if err != nil {
+		slog.Error("could not create runtime metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	err = host.Start()
+	if err != nil {
+		slog.Error("could not create host metrics", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	defer func() {
+		_ = shutdown(ctx)
+	}()
+
+	slog.Info("yt-playlist-ripper init", slog.Any("playlists", c.PlaylistList), slog.String("cron", c.CronString), slog.String("video quality", c.VideoQuality), slog.String("archive file", c.ArchiveFile), slog.String("output template", c.OutputTemplate))
+
+	ytdlClient := ytdl.New(lockmap.New(), c.VideoQuality, c.ArchiveFile, c.OutputTemplate)
+
+	for _, playlist := range strings.Split(c.PlaylistList, ",") {
 		err := ytdlClient.LockMap.Add(playlist)
 		if err != nil {
-			logger.Error("could not add playlist to lockmap", zap.Error(err), zap.String("playlist", playlist))
+			slog.Error("could not add playlist to lockmap", slog.String("playlist", playlist), slog.String("error", err.Error()))
+		} else {
+			slog.Info("added playlist to lockmap", slog.String("playlist", playlist))
 		}
 	}
 
-	if config.Bool(configClient.RunOnStart) {
-		for _, playlist := range strings.Split(config.String(configClient.PlaylistList), ",") {
+	if c.RunOnStart {
+		for _, playlist := range strings.Split(c.PlaylistList, ",") {
 			ytdlClient.Run(playlist)()
 		}
 	}
 
-	c := cron.New()
-	for _, playlist := range strings.Split(config.String(configClient.PlaylistList), ",") {
-		logger.Info("adding playlist to cron", zap.String("playlist", playlist))
-		_, err = c.AddFunc(config.String(configClient.CronString), ytdlClient.Run(playlist))
+	cronClient := cron.New()
+	for _, playlist := range strings.Split(c.PlaylistList, ",") {
+		slog.Info("adding cron job", slog.String("playlist", playlist), slog.String("cron", c.CronString))
+		_, err = cronClient.AddFunc(c.CronString, ytdlClient.Run(playlist))
 		if err != nil {
-			logger.Error("could not add cron job", zap.Error(err))
+			slog.Error("could not add cron job", slog.String("playlist", playlist), slog.String("error", err.Error()))
 		}
 	}
-	c.Start()
+	cronClient.Start()
 
-	r := mux.NewRouter()
-	r.HandleFunc("/healthcheck", handlers.HealthcheckHandler)
-	r.Handle("/metrics", promhttp.Handler())
-	http.Handle("/", r)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	httpPort := config.String("http.port")
-	logger.Info("starting http server", zap.String("port", httpPort))
-	err = http.ListenAndServe(fmt.Sprintf(":%s", httpPort), nil)
-	if err != nil {
-		logger.Fatal("could not start http server", zap.Error(err))
-	}
+	slog.Info("yt-playlist-ripper started", slog.String("pid", fmt.Sprintf("%d", os.Getpid())))
+	slog.Info("waiting for signal")
+
+	<-ctx.Done()
+	slog.Info("shutting down")
 
 }

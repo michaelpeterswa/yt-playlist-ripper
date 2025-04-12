@@ -1,16 +1,60 @@
 ---
-version: "3.3"
-
 services:
   main:
     build: .
     ports:
       - "8081:8081"
     environment:
-      YTPR_PLAYLIST_LIST: "PLUcjmvZLvmS_vTF8su_eqA6XgCfl88kuV"
-      YTPR_HTTP_PORT: 8081
-      YTPR_ARCHIVE_FILE: "/downloads/archive.txt"
-      YTPR_VIDEO_QUALITY: "height:1080"
+      # logging
+      LOG_LEVEL: "info"
+
+      # application
+      PLAYLIST_LIST: "PLUcjmvZLvmS_vTF8su_eqA6XgCfl88kuV"
+
+      # metrics
+      METRICS_ENABLED: "true"
+      METRICS_PORT: "8081"
+
+      LOCAL: "true"
+
+      # tracing
+      TRACING_ENABLED: "false"
+      TRACING_SAMPLERATE: "1.0"
+      TRACING_SERVICE: "go-start"
+      TRACING_VERSION: "0.0.1"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://lgtm:4317"
+
     volumes:
       - ./downloads:/downloads
       - ./config:/config
+
+  lgtm:
+    image: grafana/otel-lgtm
+    ports:
+      - "3000:3000" # Grafana UI
+      - "4317:4317" # OTLP
+      - "4318:4318" # OTLPHTTP
+    volumes:
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./docker/grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/grafana-dashboards.yaml
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+
+  alloy:
+    image: grafana/alloy:v1.4.2
+    command:
+      - run
+      - --server.http.listen-addr
+      - 0.0.0.0:12345
+      - /config.alloy
+      - --stability.level=experimental
+    volumes:
+      - ./docker/alloy/config.alloy:/config.alloy
+      # pass sock in for loki container discovery
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 12345:12345
+      # zipkin
+      - 9411:9411

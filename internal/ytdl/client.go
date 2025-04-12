@@ -1,25 +1,24 @@
 package ytdl
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"log/slog"
 	"os/exec"
 
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/lockmap"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapio"
 )
 
 type YTDLPClient struct {
-	logger         *zap.Logger
 	LockMap        *lockmap.LockMap
 	VideoQuality   string
 	ArchiveFile    string
 	OutputTemplate string
 }
 
-func New(logger *zap.Logger, lockMap *lockmap.LockMap, videoQuality string, archiveFile string, outputTemplate string) *YTDLPClient {
+func New(lockMap *lockmap.LockMap, videoQuality string, archiveFile string, outputTemplate string) *YTDLPClient {
 	return &YTDLPClient{
-		logger:         logger,
 		LockMap:        lockmap.New(),
 		VideoQuality:   videoQuality,
 		ArchiveFile:    archiveFile,
@@ -31,20 +30,18 @@ func (ytdl *YTDLPClient) Run(playlist string) func() {
 	return func() {
 		err := ytdl.LockMap.Lock(playlist)
 		if err != nil {
-			ytdl.logger.Error("failed to acquire lock", zap.Error(err), zap.String("playlist", playlist))
+			slog.Error("failed to acquire lock", slog.String("playlist", playlist), slog.String("error", err.Error()))
 			return
 		}
 		defer func() {
 			err := ytdl.LockMap.Unlock(playlist)
 			if err != nil {
-				ytdl.logger.Error("failed to release lock", zap.Error(err), zap.String("playlist", playlist))
+				slog.Error("failed to release lock", slog.String("playlist", playlist), slog.String("error", err.Error()))
 			}
 		}()
 
-		zapWriter := zapio.Writer{
-			Log:   ytdl.logger.With(zap.String("from", "ytdlp")),
-			Level: zap.InfoLevel,
-		}
+		r, w := io.Pipe()
+
 		ytdlCommand := exec.Command("yt-dlp",
 			"--no-call-home",
 			"--no-progress",
@@ -55,20 +52,38 @@ func (ytdl *YTDLPClient) Run(playlist string) func() {
 			"-o", ytdl.OutputTemplate,
 			"--download-archive", ytdl.ArchiveFile,
 			fmt.Sprintf("https://www.youtube.com/playlist?list=%s", playlist))
-		ytdlCommand.Stdout = &zapWriter
-		ytdlCommand.Stderr = &zapWriter
+		ytdlCommand.Stdout = w
+		ytdlCommand.Stderr = w
 
-		ytdl.logger.Info("command run", zap.String("command", ytdlCommand.String()))
+		go func() {
+			scanner := bufio.NewScanner(r)
+			for scanner.Scan() {
+				slog.Info("yt-dlp output", slog.String("output", scanner.Text()))
+			}
+			if err := scanner.Err(); err != nil {
+				slog.Error("yt-dlp output error", slog.String("error", err.Error()))
+			}
+		}()
+
+		defer func() {
+			err := w.Close()
+			if err != nil {
+				slog.Error("failed to close pipe writer", slog.String("error", err.Error()))
+			}
+		}()
+
+		slog.Info("command run", slog.String("command", ytdlCommand.String()), slog.String("playlist", playlist))
 
 		err = ytdlCommand.Start()
 		if err != nil {
-			ytdl.logger.Error("yt-playlist-ripper failed to run ytdl", zap.Error(err))
+			slog.Error("yt-dlp command failed to start", slog.String("error", err.Error()), slog.String("command", ytdlCommand.String()))
 			return
 		}
 
 		err = ytdlCommand.Wait()
 		if err != nil {
-			ytdl.logger.Error("yt-playlist-ripper failed to exit successfully", zap.Error(err))
+			slog.Error("yt-dlp command failed to run", slog.String("error", err.Error()), slog.String("command", ytdlCommand.String()))
+			return
 		}
 	}
 }
