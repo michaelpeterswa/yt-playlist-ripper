@@ -1,11 +1,22 @@
 package logging
 
-import "go.uber.org/zap"
+import (
+	"fmt"
+	"log/slog"
+	"strings"
+)
 
-func InitZap() (*zap.Logger, error) {
-	logger, err := zap.NewProduction()
-	if err != nil {
-		return nil, err
+func LogLevelToSlogLevel(logLevel string) (slog.Level, error) {
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		return slog.LevelDebug, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "warn":
+		return slog.LevelWarn, nil
+	case "error":
+		return slog.LevelError, nil
+	default:
+		return slog.LevelInfo, fmt.Errorf("unknown log level: %s", logLevel)
 	}
-	return logger, nil
 }

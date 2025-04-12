@@ -1,0 +1,74 @@
+// CONFIGURATION
+
+livedebugging {
+	enabled = true
+}
+
+// DOCKER DISCOVERY
+
+discovery.docker "linux" {
+	host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "linux_relabeled" {
+	targets = discovery.docker.linux.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "service"
+	}
+}
+
+// PROMETHEUS METRICS
+
+prometheus.scrape "default" {
+	targets    = discovery.relabel.linux_relabeled.output
+	forward_to = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.remote_write "default" {
+	endpoint {
+		url = "http://lgtm:9090/api/v1/write"
+	}
+}
+
+// LOKI LOGS
+
+loki.source.docker "default" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.linux_relabeled.output
+	forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+	endpoint {
+		url = "http://lgtm:3100/loki/api/v1/push"
+	}
+}
+
+// ZIPKIN TRACING
+
+otelcol.receiver.zipkin "default" {
+	output {
+		traces = [otelcol.processor.batch.default.input]
+	}
+}
+
+otelcol.processor.batch "default" {
+	output {
+		metrics = [otelcol.exporter.otlp.default.input]
+		logs    = [otelcol.exporter.otlp.default.input]
+		traces  = [otelcol.exporter.otlp.default.input]
+	}
+}
+
+otelcol.exporter.otlp "default" {
+	client {
+		endpoint = "lgtm:4317"
+
+		tls {
+			insecure             = true
+			insecure_skip_verify = true
+		}
+	}
+}

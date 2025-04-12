@@ -2,67 +2,38 @@ package config
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/knadh/koanf/providers/env"
-	"github.com/knadh/koanf/v2"
+	"github.com/caarlos0/env"
 )
 
-const (
-	RunOnStart     = "run.on.start"
-	PlaylistList   = "playlist.list"
-	CronString     = "cron.string"
-	HTTPPort       = "http.port"
-	VideoQuality   = "video.quality"
-	ArchiveFile    = "archive.file"
-	OutputTemplate = "output.template"
-)
+type Config struct {
+	LogLevel string `env:"LOG_LEVEL" envDefault:"error"`
 
-func Get() (*koanf.Koanf, error) {
-	k := koanf.New(".")
+	RunOnStart     bool   `env:"RUN_ON_START" envDefault:"true"`
+	PlaylistList   string `env:"PLAYLIST_LIST" envDefault:""`
+	CronString     string `env:"CRON_STRING" envDefault:"0 */12 * * *"`
+	VideoQuality   string `env:"VIDEO_QUALITY" envDefault:"height:1080"`
+	ArchiveFile    string `env:"ARCHIVE_FILE" envDefault:"/downloads/archive.txt"`
+	OutputTemplate string `env:"OUTPUT_TEMPLATE" envDefault:"/downloads/%(playlist)s/%(channel)s/%(title)s"`
 
-	err := k.Load(env.Provider("YTPR_", ".", func(s string) string {
-		return strings.Replace(strings.ToLower(
-			strings.TrimPrefix(s, "YTPR_")), "_", ".", -1)
-	}), nil)
+	MetricsEnabled bool `env:"METRICS_ENABLED" envDefault:"true"`
+	MetricsPort    int  `env:"METRICS_PORT" envDefault:"8081"`
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
+	Local bool `env:"LOCAL" envDefault:"false"`
 
-	return k, nil
+	TracingEnabled    bool    `env:"TRACING_ENABLED" envDefault:"false"`
+	TracingSampleRate float64 `env:"TRACING_SAMPLERATE" envDefault:"0.01"`
+	TracingService    string  `env:"TRACING_SERVICE" envDefault:"katalog-agent"`
+	TracingVersion    string  `env:"TRACING_VERSION"`
 }
 
-func SetDefaults(k *koanf.Koanf) error {
-	// At a minimum, playlist list is required
+func NewConfig() (*Config, error) {
+	var cfg Config
 
-	if !k.Exists(PlaylistList) {
-		return fmt.Errorf("playlist list environment variable is required")
+	err := env.Parse(&cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	if !k.Exists(OutputTemplate) {
-		_ = k.Set("output.template", "/downloads/%(playlist)s/%(channel)s/%(title)s")
-	}
-
-	if !k.Exists(CronString) {
-		_ = k.Set("cron.string", "0 */12 * * *")
-	}
-
-	if !k.Exists(HTTPPort) {
-		_ = k.Set("http.port", "8081")
-	}
-
-	if !k.Exists(VideoQuality) {
-		_ = k.Set("video.quality", "height:1080")
-	}
-
-	if !k.Exists(ArchiveFile) {
-		_ = k.Set("archive.file", "/downloads/archive.txt")
-	}
-
-	if !k.Exists(RunOnStart) {
-		_ = k.Set("run.on.start", "true")
-	}
-
-	return nil
+	return &cfg, nil
 }
