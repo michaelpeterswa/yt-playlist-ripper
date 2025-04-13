@@ -89,9 +89,9 @@ func main() {
 		_ = shutdown(ctx)
 	}()
 
-	slog.Info("yt-playlist-ripper init", slog.Any("playlists", c.PlaylistList), slog.String("cron", c.CronString), slog.String("video quality", c.VideoQuality), slog.String("archive file", c.ArchiveFile), slog.String("output template", c.OutputTemplate))
+	slog.Info("yt-playlist-ripper init", slog.Any("playlists", c.PlaylistList), slog.String("cron", c.CronString))
 
-	ytdlClient := ytdl.New(lockmap.New(), c.VideoQuality, c.ArchiveFile, c.OutputTemplate)
+	ytdlClient := ytdl.New(lockmap.New(), c)
 
 	for _, playlist := range strings.Split(c.PlaylistList, ",") {
 		err := ytdlClient.LockMap.Add(playlist)
