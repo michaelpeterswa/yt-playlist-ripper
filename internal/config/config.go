@@ -26,6 +26,10 @@ type Config struct {
 	MetricsEnabled bool `env:"METRICS_ENABLED" envDefault:"true"`
 	MetricsPort    int  `env:"METRICS_PORT" envDefault:"8081"`
 
+	TelegramEnabled  bool   `env:"TELEGRAM_ENABLED" envDefault:"false"`
+	TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN" envDefault:""`
+	TelegramChatID   string `env:"TELEGRAM_CHAT_ID" envDefault:""`
+
 	Local bool `env:"LOCAL" envDefault:"false"`
 
 	TracingEnabled    bool    `env:"TRACING_ENABLED" envDefault:"false"`

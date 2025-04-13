@@ -17,3 +17,5 @@ vendor/
 downloads/
 config/config.yaml
 config/archive.txt
+
+.env
