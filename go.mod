@@ -7,6 +7,7 @@ toolchain go1.23.5
 require (
 	alpineworks.io/ootel v1.0.4
 	github.com/caarlos0/env v3.5.0+incompatible
+	github.com/go-telegram/bot v1.14.2
 	github.com/robfig/cron/v3 v3.0.0
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/contrib/instrumentation/host v0.60.0
@@ -22,7 +23,6 @@ require (
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-telegram/bot v1.14.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect

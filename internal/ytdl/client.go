@@ -54,7 +54,6 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 		command := NewCommand(
 			"yt-dlp",
 			WithFormat(ytdlClient.c.Format),
-			WithVerbose(),
 			WithForceIPv4(),
 			WithSleepRequests(ytdlClient.c.SleepRequests),
 			WithSleepInterval(ytdlClient.c.SleepInterval),
@@ -87,6 +86,11 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 
 		go func() {
 			scanner := bufio.NewScanner(r)
+
+			// 1MB buffer size for scanner
+			buf := make([]byte, 0, 64*1024)
+			scanner.Buffer(buf, 1024*1024)
+
 			for scanner.Scan() {
 				slog.Info("yt-dlp output", slog.String("output", scanner.Text()))
 			}
