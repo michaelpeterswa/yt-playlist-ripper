@@ -13,6 +13,7 @@ services:
 
       # application
       PLAYLIST_LIST: "PLUcjmvZLvmS_vTF8su_eqA6XgCfl88kuV"
+      # yamllint disable-line rule:line-length
       OUTPUT_TEMPLATE: "downloads/%(playlist)s - (%(uploader)s)/%(upload_date)s - %(title)s/%(upload_date)s - %(title)s [%(id)s].%(ext)s"
       MERGE_OUTPUT_FORMAT: "mp4"
       TELEGRAM_ENABLED: "true"
