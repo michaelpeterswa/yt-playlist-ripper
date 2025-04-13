@@ -15,6 +15,7 @@ import (
 	configClient "github.com/michaelpeterswa/yt-playlist-ripper/internal/config"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/lockmap"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/logging"
+	"github.com/michaelpeterswa/yt-playlist-ripper/internal/telegram"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/ytdl"
 	"github.com/robfig/cron/v3"
 	"go.opentelemetry.io/contrib/instrumentation/host"
@@ -89,9 +90,16 @@ func main() {
 		_ = shutdown(ctx)
 	}()
 
-	slog.Info("yt-playlist-ripper init", slog.Any("playlists", c.PlaylistList), slog.String("cron", c.CronString), slog.String("video quality", c.VideoQuality), slog.String("archive file", c.ArchiveFile), slog.String("output template", c.OutputTemplate))
+	telegramClient, err := telegram.NewTelegramClient(c.TelegramEnabled, c.TelegramBotToken, c.TelegramChatID)
+	if err != nil {
+		slog.Error("could not create telegram client", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	go telegramClient.Start(ctx)
 
-	ytdlClient := ytdl.New(lockmap.New(), c.VideoQuality, c.ArchiveFile, c.OutputTemplate)
+	slog.Info("yt-playlist-ripper init", slog.Any("playlists", c.PlaylistList), slog.String("cron", c.CronString))
+
+	ytdlClient := ytdl.New(lockmap.New(), c, telegramClient)
 
 	for _, playlist := range strings.Split(c.PlaylistList, ",") {
 		err := ytdlClient.LockMap.Add(playlist)
