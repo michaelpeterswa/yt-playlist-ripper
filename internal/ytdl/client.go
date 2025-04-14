@@ -61,6 +61,7 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 			WithIgnoreErrors(),
 			WithNoContinue(),
 			WithNoOverwrites(),
+			WithNoProgress(),
 			WithDownloadArchive(ytdlClient.c.ArchiveFile),
 			WithAddMetadata(),
 			WithParseMetadata(ParseMetadataTitleMetaTitle),
