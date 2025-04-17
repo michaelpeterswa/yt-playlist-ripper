@@ -79,6 +79,13 @@ func WithVerbose() CommandOption {
 	}
 }
 
+// Activate quiet mode. If used with --verbose, print the log to stderr
+func WithQuiet() CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--quiet")
+	}
+}
+
 // Make all connections via IPv4
 func WithForceIPv4() CommandOption {
 	return func(cmd *Command) {

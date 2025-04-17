@@ -22,6 +22,8 @@ type Config struct {
 	OutputTemplate      string `env:"OUTPUT_TEMPLATE" envDefault:"%(playlist)s - (%(uploader)s)/%(upload_date)s - %(title)s/%(upload_date)s - %(title)s [%(id)s].%(ext)s"`
 	MergeOutputFormat   string `env:"MERGE_OUTPUT_FORMAT" envDefault:"mkv"`
 	ThrottledRate       string `env:"THROTTLED_RATE" envDefault:"100K"`
+	Quiet               bool   `env:"QUIET" envDefault:"false"`
+	Verbose             bool   `env:"VERBOSE" envDefault:"false"`
 
 	MetricsEnabled bool `env:"METRICS_ENABLED" envDefault:"true"`
 	MetricsPort    int  `env:"METRICS_PORT" envDefault:"8081"`

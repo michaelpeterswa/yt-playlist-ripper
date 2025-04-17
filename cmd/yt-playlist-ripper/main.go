@@ -97,6 +97,7 @@ func main() {
 	}
 	go telegramClient.Start(ctx)
 
+	telegramClient.SendMessage(ctx, "𝔶𝔱-𝔭𝔩𝔞𝔶𝔩𝔦𝔰𝔱-𝔯𝔦𝔭𝔭𝔢𝔯\n\nhas started")
 	slog.Info("yt-playlist-ripper init", slog.Any("playlists", c.PlaylistList), slog.String("cron", c.CronString))
 
 	ytdlClient := ytdl.New(lockmap.New(), c, telegramClient)
