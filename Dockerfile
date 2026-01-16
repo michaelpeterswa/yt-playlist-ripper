@@ -7,13 +7,20 @@ COPY . .
 
 RUN go get -d -v ./... && CGO_ENABLED=0 GOOS=linux go build ./cmd/yt-playlist-ripper
 
-# -=-=-=-=- Final Python Image -=-=-=-=-
+# -=-=-=-=- Bun Runtime Image -=-=-=-=-
 
-FROM python:alpine AS stage-final
+FROM oven/bun:1.3.6-alpine AS stage-bun
 
+# -=-=-=-=- Final Python Alpine Image -=-=-=-=-
+
+FROM python:3.13-alpine AS stage-final
+
+COPY --from=stage-bun /usr/local/bin/bun /usr/local/bin/bun
+
+# hadolint ignore=DL3018
 RUN apk update && \
-    apk add --no-cache curl=8.12.1-r1 ffmpeg=6.1.2-r1 && \
-    curl -L https://github.com/yt-dlp/yt-dlp/releases/download/2025.03.31/yt-dlp -o /usr/local/bin/yt-dlp && \
+    apk add --no-cache curl ffmpeg && \
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/download/2025.12.08/yt-dlp -o /usr/local/bin/yt-dlp && \
     chmod a+rx /usr/local/bin/yt-dlp
 
 COPY --from=stage-compile /go/src/app/yt-playlist-ripper /

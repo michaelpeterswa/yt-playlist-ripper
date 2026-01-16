@@ -18,6 +18,16 @@ type TelegramClient struct {
 }
 
 func NewTelegramClient(enabled bool, botToken string, chatID string, opts ...bot.Option) (*TelegramClient, error) {
+	if !enabled {
+		slog.Info("telegram client is disabled")
+		return &TelegramClient{
+			Enabled:  false,
+			BotToken: botToken,
+			ChatID:   chatID,
+			bot:      nil,
+		}, nil
+	}
+
 	b, err := bot.New(botToken, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create telegram bot: %w", err)
@@ -32,6 +42,11 @@ func NewTelegramClient(enabled bool, botToken string, chatID string, opts ...bot
 }
 
 func (t *TelegramClient) Start(ctx context.Context) {
+	if !t.Enabled {
+		slog.Info("telegram client is disabled")
+		return
+	}
+
 	t.bot.Start(ctx)
 }
 
