@@ -77,6 +77,7 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 			WithOutputTemplate(ytdlClient.c.OutputTemplate),
 			WithMergeOutputFormat(ytdlClient.c.MergeOutputFormat),
 			WithThrottledRate(ytdlClient.c.ThrottledRate),
+			WithJSRuntime("bun"),
 			WithString(fmt.Sprintf("https://www.youtube.com/playlist?list=%s", playlist)),
 		}
 

@@ -235,3 +235,10 @@ func WithString(s string) CommandOption {
 		cmd.args = append(cmd.args, s)
 	}
 }
+
+// Specify JavaScript runtime for extraction
+func WithJSRuntime(runtime string) CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--js-runtimes", runtime)
+	}
+}
