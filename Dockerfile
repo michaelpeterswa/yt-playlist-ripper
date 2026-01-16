@@ -7,11 +7,15 @@ COPY . .
 
 RUN go get -d -v ./... && CGO_ENABLED=0 GOOS=linux go build ./cmd/yt-playlist-ripper
 
+# -=-=-=-=- Bun Runtime Image -=-=-=-=-
+
+FROM oven/bun:1.3.6-alpine AS stage-bun
+
 # -=-=-=-=- Final Python Alpine Image -=-=-=-=-
 
 FROM python:3.13-alpine AS stage-final
 
-COPY --from=oven/bun:1.3.6-alpine /usr/local/bin/bun /usr/local/bin/bun
+COPY --from=stage-bun /usr/local/bin/bun /usr/local/bin/bun
 
 # hadolint ignore=DL3018
 RUN apk update && \
