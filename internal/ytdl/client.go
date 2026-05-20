@@ -109,6 +109,7 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 		var (
 			scannerWG      sync.WaitGroup
 			capturedIssues []string
+			sawError       bool
 		)
 		scannerWG.Go(func() {
 			scanner := bufio.NewScanner(r)
@@ -120,11 +121,17 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 			for scanner.Scan() {
 				line := scanner.Text()
 				slog.Info("yt-dlp output", slog.String("output", line))
-				if strings.HasPrefix(line, "ERROR:") || strings.HasPrefix(line, "WARNING:") {
+				switch {
+				case strings.HasPrefix(line, "ERROR:"):
+					sawError = true
 					capturedIssues = append(capturedIssues, line)
-					if len(capturedIssues) > maxCapturedIssues {
-						capturedIssues = capturedIssues[len(capturedIssues)-maxCapturedIssues:]
-					}
+				case strings.HasPrefix(line, "WARNING:"):
+					capturedIssues = append(capturedIssues, line)
+				default:
+					continue
+				}
+				if len(capturedIssues) > maxCapturedIssues {
+					capturedIssues = capturedIssues[len(capturedIssues)-maxCapturedIssues:]
 				}
 			}
 			if err := scanner.Err(); err != nil {
@@ -151,16 +158,26 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 		}
 		scannerWG.Wait()
 
-		if waitErr != nil {
+		switch {
+		case waitErr != nil:
 			slog.Error("yt-dlp command failed to run", slog.String("error", waitErr.Error()), slog.String("command", ytdlCommand.String()))
 			body := fmt.Sprintf("playlist %s failed (%s)", playlist, waitErr.Error())
 			if summary := summarizeIssues(capturedIssues); summary != "" {
 				body = body + "\n\n" + summary
 			}
 			ytdlClient.notifier.Send(ctx, "yt-playlist-ripper", body)
-			return
+		case sawError:
+			// yt-dlp exited 0 (typically thanks to --ignore-errors) but logged
+			// at least one ERROR: line. Surface it so the operator knows.
+			slog.Warn("yt-dlp command finished with errors", slog.String("playlist", playlist))
+			body := fmt.Sprintf("playlist %s finished with errors", playlist)
+			if summary := summarizeIssues(capturedIssues); summary != "" {
+				body = body + "\n\n" + summary
+			}
+			ytdlClient.notifier.Send(ctx, "yt-playlist-ripper", body)
+		default:
+			slog.Info("yt-dlp command finished", slog.String("playlist", playlist))
 		}
-		slog.Info("yt-dlp command finished", slog.String("playlist", playlist))
 	}
 }
 
