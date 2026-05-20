@@ -7,16 +7,18 @@ import (
 	"io"
 	"log/slog"
 	"os/exec"
+	"sync"
 
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/config"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/lockmap"
-	"github.com/michaelpeterswa/yt-playlist-ripper/internal/telegram"
+	"github.com/michaelpeterswa/yt-playlist-ripper/internal/notifier"
 )
 
 type YTDLPClient struct {
-	LockMap        *lockmap.LockMap
-	c              *config.Config
-	telegramClient *telegram.TelegramClient
+	LockMap  *lockmap.LockMap
+	ctx      context.Context
+	c        *config.Config
+	notifier *notifier.Notifier
 }
 
 const (
@@ -25,17 +27,16 @@ const (
 	MatchFilter                     = "!is_live & !live"
 )
 
-func New(lockMap *lockmap.LockMap, c *config.Config, tc *telegram.TelegramClient) *YTDLPClient {
+func New(ctx context.Context, lockMap *lockmap.LockMap, c *config.Config, n *notifier.Notifier) *YTDLPClient {
 	return &YTDLPClient{
-		LockMap:        lockmap.New(),
-		c:              c,
-		telegramClient: tc,
+		LockMap:  lockMap,
+		ctx:      ctx,
+		c:        c,
+		notifier: n,
 	}
 }
 
 func (ytdlClient *YTDLPClient) Run(playlist string) func() {
-	ctx := context.Background()
-
 	return func() {
 		err := ytdlClient.LockMap.Lock(playlist)
 		if err != nil {
@@ -49,7 +50,7 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 			}
 		}()
 
-		r, w := io.Pipe()
+		ctx := ytdlClient.ctx
 
 		commandOptions := []CommandOption{
 			WithFormat(ytdlClient.c.Format),
@@ -69,7 +70,8 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 			WithWriteInfoJSON(),
 			WithWriteThumbnail(),
 			WithEmbedThumbnail(),
-			WithAllSubs(),
+			WithWriteSubs(),
+			WithSubLangs("all"),
 			WithEmbedSubs(),
 			WithCheckFormats(),
 			WithConcurrentFragments(ytdlClient.c.ConcurrentFragments),
@@ -92,11 +94,16 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 			commandOptions...,
 		)
 
-		ytdlCommand := exec.Command(command.bin, command.args...)
+		r, w := io.Pipe()
+
+		ytdlCommand := exec.CommandContext(ctx, command.bin, command.args...)
 		ytdlCommand.Stdout = w
 		ytdlCommand.Stderr = w
 
+		var scannerWG sync.WaitGroup
+		scannerWG.Add(1)
 		go func() {
+			defer scannerWG.Done()
 			scanner := bufio.NewScanner(r)
 
 			// 1MB buffer size for scanner
@@ -111,32 +118,30 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 			}
 		}()
 
-		defer func() {
-			err := w.Close()
-			if err != nil {
-				slog.Error("failed to close pipe writer", slog.String("error", err.Error()))
-			}
-		}()
-
 		if !ytdlClient.c.Quiet {
 			slog.Info("command run", slog.String("command", ytdlCommand.String()), slog.String("playlist", playlist))
 		}
 
-		ytdlClient.telegramClient.SendMessage(ctx, telegram.MessageString(telegram.Bold("playlist "), telegram.Code(playlist), telegram.Bold(" is running")))
 		err = ytdlCommand.Start()
 		if err != nil {
+			_ = w.Close()
+			scannerWG.Wait()
 			slog.Error("yt-dlp command failed to start", slog.String("error", err.Error()), slog.String("command", ytdlCommand.String()))
-			ytdlClient.telegramClient.SendMessage(ctx, telegram.MessageString(telegram.Bold("playlist "), telegram.Code(playlist), telegram.Bold(" has failed to start")))
+			ytdlClient.notifier.Send(ctx, "yt-playlist-ripper", fmt.Sprintf("playlist %s failed to start: %s", playlist, err.Error()))
 			return
 		}
 
-		err = ytdlCommand.Wait()
-		if err != nil {
-			slog.Error("yt-dlp command failed to run", slog.String("error", err.Error()), slog.String("command", ytdlCommand.String()))
-			ytdlClient.telegramClient.SendMessage(ctx, telegram.MessageString(telegram.Bold("playlist "), telegram.Code(playlist), telegram.Bold(" has failed")))
+		waitErr := ytdlCommand.Wait()
+		if closeErr := w.Close(); closeErr != nil {
+			slog.Error("failed to close pipe writer", slog.String("error", closeErr.Error()))
+		}
+		scannerWG.Wait()
+
+		if waitErr != nil {
+			slog.Error("yt-dlp command failed to run", slog.String("error", waitErr.Error()), slog.String("command", ytdlCommand.String()))
+			ytdlClient.notifier.Send(ctx, "yt-playlist-ripper", fmt.Sprintf("playlist %s failed: %s", playlist, waitErr.Error()))
 			return
 		}
 		slog.Info("yt-dlp command finished", slog.String("playlist", playlist))
-		ytdlClient.telegramClient.SendMessage(ctx, telegram.MessageString(telegram.Bold("playlist "), telegram.Code(playlist), telegram.Bold(" has finished")))
 	}
 }

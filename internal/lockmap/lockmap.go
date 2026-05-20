@@ -34,24 +34,26 @@ func (l *LockMap) Add(key string) error {
 
 func (l *LockMap) Lock(key string) error {
 	l.mu.Lock()
-	defer l.mu.Unlock()
+	m, ok := l.LockMap[key]
+	l.mu.Unlock()
 
-	if _, ok := l.LockMap[key]; !ok {
+	if !ok {
 		return ErrorLockMapKeyNotFound
 	}
-	l.LockMap[key].Lock()
+	m.Lock()
 
 	return nil
 }
 
 func (l *LockMap) Unlock(key string) error {
 	l.mu.Lock()
-	defer l.mu.Unlock()
+	m, ok := l.LockMap[key]
+	l.mu.Unlock()
 
-	if _, ok := l.LockMap[key]; !ok {
+	if !ok {
 		return ErrorLockMapKeyNotFound
 	}
-	l.LockMap[key].Unlock()
+	m.Unlock()
 
 	return nil
 }

@@ -28,15 +28,15 @@ type Config struct {
 	MetricsEnabled bool `env:"METRICS_ENABLED" envDefault:"true"`
 	MetricsPort    int  `env:"METRICS_PORT" envDefault:"8081"`
 
-	TelegramEnabled  bool   `env:"TELEGRAM_ENABLED" envDefault:"false"`
-	TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN" envDefault:""`
-	TelegramChatID   string `env:"TELEGRAM_CHAT_ID" envDefault:""`
+	PulsarURL            string `env:"PULSAR_URL" envDefault:""`
+	PulsarBearerToken    string `env:"PULSAR_BEARER_TOKEN" envDefault:""`
+	PulsarPushoverUserKey string `env:"PULSAR_PUSHOVER_USER_KEY" envDefault:""`
 
 	Local bool `env:"LOCAL" envDefault:"false"`
 
 	TracingEnabled    bool    `env:"TRACING_ENABLED" envDefault:"false"`
 	TracingSampleRate float64 `env:"TRACING_SAMPLERATE" envDefault:"0.01"`
-	TracingService    string  `env:"TRACING_SERVICE" envDefault:"katalog-agent"`
+	TracingService    string  `env:"TRACING_SERVICE" envDefault:"yt-playlist-ripper"`
 	TracingVersion    string  `env:"TRACING_VERSION"`
 }
 
