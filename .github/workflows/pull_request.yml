@@ -31,9 +31,9 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v5.2.0
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.62.2
+          version: v2.6
           args: --timeout=5m --enable=bodyclose
 
   yamllint:
