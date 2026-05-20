@@ -172,10 +172,24 @@ func WithEmbedThumbnail() CommandOption {
 
 // --sub-langs all --write-subs
 //
-// No longer recommended (https://github.com/yt-dlp/yt-dlp#not-recommended)
+// Deprecated: superseded by WithSubLangs/WithWriteSubs (https://github.com/yt-dlp/yt-dlp#not-recommended)
 func WithAllSubs() CommandOption {
 	return func(cmd *Command) {
 		cmd.args = append(cmd.args, "--all-subs")
+	}
+}
+
+// Languages of the subtitles to download (can be regex) or "all" separated by commas
+func WithSubLangs(langs string) CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--sub-langs", langs)
+	}
+}
+
+// Write subtitle file
+func WithWriteSubs() CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--write-subs")
 	}
 }
 

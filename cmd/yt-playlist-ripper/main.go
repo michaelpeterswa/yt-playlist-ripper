@@ -15,7 +15,7 @@ import (
 	configClient "github.com/michaelpeterswa/yt-playlist-ripper/internal/config"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/lockmap"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/logging"
-	"github.com/michaelpeterswa/yt-playlist-ripper/internal/telegram"
+	"github.com/michaelpeterswa/yt-playlist-ripper/internal/notifier"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/ytdl"
 	"github.com/robfig/cron/v3"
 	"go.opentelemetry.io/contrib/instrumentation/host"
@@ -43,7 +43,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	exporterType := ootel.ExporterTypePrometheus
 	if c.Local {
@@ -87,22 +88,22 @@ func main() {
 	}
 
 	defer func() {
-		_ = shutdown(ctx)
+		_ = shutdown(context.Background())
 	}()
 
-	telegramClient, err := telegram.NewTelegramClient(c.TelegramEnabled, c.TelegramBotToken, c.TelegramChatID)
+	notifierClient, err := notifier.New(c.PulsarURL, c.PulsarBearerToken, c.PulsarPushoverUserKey)
 	if err != nil {
-		slog.Error("could not create telegram client", slog.String("error", err.Error()))
+		slog.Error("could not create notifier", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	go telegramClient.Start(ctx)
 
-	telegramClient.SendMessage(ctx, "𝔶𝔱-𝔭𝔩𝔞𝔶𝔩𝔦𝔰𝔱-𝔯𝔦𝔭𝔭𝔢𝔯\n\nhas started")
-	slog.Info("yt-playlist-ripper init", slog.Any("playlists", c.PlaylistList), slog.String("cron", c.CronString))
+	playlists := splitPlaylists(c.PlaylistList)
 
-	ytdlClient := ytdl.New(lockmap.New(), c, telegramClient)
+	slog.Info("yt-playlist-ripper init", slog.Any("playlists", playlists), slog.String("cron", c.CronString))
 
-	for _, playlist := range strings.Split(c.PlaylistList, ",") {
+	ytdlClient := ytdl.New(ctx, lockmap.New(), c, notifierClient)
+
+	for _, playlist := range playlists {
 		err := ytdlClient.LockMap.Add(playlist)
 		if err != nil {
 			slog.Error("could not add playlist to lockmap", slog.String("playlist", playlist), slog.String("error", err.Error()))
@@ -112,13 +113,13 @@ func main() {
 	}
 
 	if c.RunOnStart {
-		for _, playlist := range strings.Split(c.PlaylistList, ",") {
+		for _, playlist := range playlists {
 			ytdlClient.Run(playlist)()
 		}
 	}
 
 	cronClient := cron.New()
-	for _, playlist := range strings.Split(c.PlaylistList, ",") {
+	for _, playlist := range playlists {
 		slog.Info("adding cron job", slog.String("playlist", playlist), slog.String("cron", c.CronString))
 		_, err = cronClient.AddFunc(c.CronString, ytdlClient.Run(playlist))
 		if err != nil {
@@ -127,13 +128,27 @@ func main() {
 	}
 	cronClient.Start()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
 	slog.Info("yt-playlist-ripper started", slog.String("pid", fmt.Sprintf("%d", os.Getpid())))
 	slog.Info("waiting for signal")
 
 	<-ctx.Done()
 	slog.Info("shutting down")
 
+	cronStopCtx := cronClient.Stop()
+	<-cronStopCtx.Done()
+}
+
+func splitPlaylists(list string) []string {
+	if list == "" {
+		return nil
+	}
+	parts := strings.Split(list, ",")
+	out := parts[:0]
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
