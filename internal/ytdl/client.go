@@ -7,11 +7,17 @@ import (
 	"io"
 	"log/slog"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/config"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/lockmap"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/notifier"
+)
+
+const (
+	maxCapturedIssues = 50
+	maxNotifyBytes    = 900
 )
 
 type YTDLPClient struct {
@@ -100,10 +106,11 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 		ytdlCommand.Stdout = w
 		ytdlCommand.Stderr = w
 
-		var scannerWG sync.WaitGroup
-		scannerWG.Add(1)
-		go func() {
-			defer scannerWG.Done()
+		var (
+			scannerWG      sync.WaitGroup
+			capturedIssues []string
+		)
+		scannerWG.Go(func() {
 			scanner := bufio.NewScanner(r)
 
 			// 1MB buffer size for scanner
@@ -111,12 +118,19 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 			scanner.Buffer(buf, 1024*1024)
 
 			for scanner.Scan() {
-				slog.Info("yt-dlp output", slog.String("output", scanner.Text()))
+				line := scanner.Text()
+				slog.Info("yt-dlp output", slog.String("output", line))
+				if strings.HasPrefix(line, "ERROR:") || strings.HasPrefix(line, "WARNING:") {
+					capturedIssues = append(capturedIssues, line)
+					if len(capturedIssues) > maxCapturedIssues {
+						capturedIssues = capturedIssues[len(capturedIssues)-maxCapturedIssues:]
+					}
+				}
 			}
 			if err := scanner.Err(); err != nil {
 				slog.Error("yt-dlp output error", slog.String("error", err.Error()))
 			}
-		}()
+		})
 
 		if !ytdlClient.c.Quiet {
 			slog.Info("command run", slog.String("command", ytdlCommand.String()), slog.String("playlist", playlist))
@@ -139,9 +153,53 @@ func (ytdlClient *YTDLPClient) Run(playlist string) func() {
 
 		if waitErr != nil {
 			slog.Error("yt-dlp command failed to run", slog.String("error", waitErr.Error()), slog.String("command", ytdlCommand.String()))
-			ytdlClient.notifier.Send(ctx, "yt-playlist-ripper", fmt.Sprintf("playlist %s failed: %s", playlist, waitErr.Error()))
+			body := fmt.Sprintf("playlist %s failed (%s)", playlist, waitErr.Error())
+			if summary := summarizeIssues(capturedIssues); summary != "" {
+				body = body + "\n\n" + summary
+			}
+			ytdlClient.notifier.Send(ctx, "yt-playlist-ripper", body)
 			return
 		}
 		slog.Info("yt-dlp command finished", slog.String("playlist", playlist))
 	}
+}
+
+// summarizeIssues dedupes a slice of yt-dlp ERROR/WARNING lines into a stable
+// first-occurrence order with occurrence counts, and trims to maxNotifyBytes
+// (favouring the tail so the freshest context survives Pushover's body limit).
+func summarizeIssues(lines []string) string {
+	if len(lines) == 0 {
+		return ""
+	}
+
+	seen := map[string]int{}
+	order := make([]string, 0, len(lines))
+	for _, l := range lines {
+		if _, ok := seen[l]; !ok {
+			order = append(order, l)
+		}
+		seen[l]++
+	}
+
+	out := make([]string, 0, len(order))
+	for _, l := range order {
+		if seen[l] > 1 {
+			out = append(out, fmt.Sprintf("%s (×%d)", l, seen[l]))
+		} else {
+			out = append(out, l)
+		}
+	}
+
+	summary := strings.Join(out, "\n")
+	if len(summary) <= maxNotifyBytes {
+		return summary
+	}
+	for len(summary) > maxNotifyBytes {
+		idx := strings.IndexByte(summary, '\n')
+		if idx < 0 {
+			return summary[len(summary)-maxNotifyBytes:]
+		}
+		summary = summary[idx+1:]
+	}
+	return "…\n" + summary
 }
