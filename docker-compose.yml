@@ -13,9 +13,10 @@ services:
 
       # application
       PLAYLIST_LIST: "PLUcjmvZLvmS_vTF8su_eqA6XgCfl88kuV"
-      # CHANNEL_LIST: "UCYO_jab_esuFRV4b17AJtAw"   # mirror whole channels directly
-      # JELLYFIN_LAYOUT: "true"                    # reshape playlists into Show/Season folders
-      # OUTPUT_ROOT: "downloads"                    # root for the Jellyfin-shaped output
+      # Opt into Jellyfin-shaped output (uncomment to enable):
+      # CHANNEL_LIST: "UCYO_jab_esuFRV4b17AJtAw"
+      # JELLYFIN_LAYOUT: "true"
+      # OUTPUT_ROOT: "downloads"
       # yamllint disable-line rule:line-length
       OUTPUT_TEMPLATE: "downloads/%(playlist)s - (%(uploader)s)/%(upload_date)s - %(title)s/%(upload_date)s - %(title)s [%(id)s].%(ext)s"
       MERGE_OUTPUT_FORMAT: "mp4"
