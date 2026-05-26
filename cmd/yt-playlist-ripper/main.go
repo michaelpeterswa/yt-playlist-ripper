@@ -97,14 +97,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	playlists := splitPlaylists(c.PlaylistList)
+	playlists := splitCSV(c.PlaylistList)
+	channels := splitCSV(c.ChannelList)
 
-	slog.Info("yt-playlist-ripper init", slog.Any("playlists", playlists), slog.String("cron", c.CronString))
+	slog.Info("yt-playlist-ripper init",
+		slog.Any("playlists", playlists),
+		slog.Any("channels", channels),
+		slog.String("cron", c.CronString),
+	)
 
 	ytdlClient := ytdl.New(ctx, lockmap.New(), c, notifierClient)
 
 	for _, playlist := range playlists {
-		err := ytdlClient.LockMap.Add(playlist)
+		key := ytdl.PlaylistLockKey(playlist)
+		err := ytdlClient.LockMap.Add(key)
 		if err != nil {
 			slog.Error("could not add playlist to lockmap", slog.String("playlist", playlist), slog.String("error", err.Error()))
 		} else {
@@ -112,9 +118,22 @@ func main() {
 		}
 	}
 
+	for _, channel := range channels {
+		key := ytdl.ChannelLockKey(channel)
+		err := ytdlClient.LockMap.Add(key)
+		if err != nil {
+			slog.Error("could not add channel to lockmap", slog.String("channel", channel), slog.String("error", err.Error()))
+		} else {
+			slog.Info("added channel to lockmap", slog.String("channel", channel))
+		}
+	}
+
 	if c.RunOnStart {
 		for _, playlist := range playlists {
 			ytdlClient.Run(playlist)()
+		}
+		for _, channel := range channels {
+			ytdlClient.RunChannel(channel)()
 		}
 	}
 
@@ -124,6 +143,13 @@ func main() {
 		_, err = cronClient.AddFunc(c.CronString, ytdlClient.Run(playlist))
 		if err != nil {
 			slog.Error("could not add cron job", slog.String("playlist", playlist), slog.String("error", err.Error()))
+		}
+	}
+	for _, channel := range channels {
+		slog.Info("adding cron job", slog.String("channel", channel), slog.String("cron", c.CronString))
+		_, err = cronClient.AddFunc(c.CronString, ytdlClient.RunChannel(channel))
+		if err != nil {
+			slog.Error("could not add cron job", slog.String("channel", channel), slog.String("error", err.Error()))
 		}
 	}
 	cronClient.Start()
@@ -138,7 +164,7 @@ func main() {
 	<-cronStopCtx.Done()
 }
 
-func splitPlaylists(list string) []string {
+func splitCSV(list string) []string {
 	if list == "" {
 		return nil
 	}

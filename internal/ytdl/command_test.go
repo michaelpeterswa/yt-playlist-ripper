@@ -44,6 +44,58 @@ func TestCommands(t *testing.T) {
 			},
 		},
 		{
+			name: "channel bootstrap (info-only)",
+			command: ytdl.NewCommand(
+				"yt-dlp",
+				ytdl.WithSkipDownload(),
+				ytdl.WithWriteInfoJSON(),
+				ytdl.WithPlaylistItems("0"),
+				ytdl.WithRestrictFilenames(),
+				ytdl.WithOutputTemplate("/downloads/%(uploader)s/%(uploader)s - NA - %(playlist_title)s [%(channel_id)s].%(ext)s"),
+				ytdl.WithString("https://www.youtube.com/channel/UCYO_jab_esuFRV4b17AJtAw/videos"),
+			),
+			expected: struct {
+				bin    string
+				args   []string
+				output string
+			}{
+				bin: "yt-dlp",
+				args: []string{
+					"--skip-download",
+					"--write-info-json",
+					"--playlist-items", "0",
+					"--restrict-filenames",
+					"--output", "/downloads/%(uploader)s/%(uploader)s - NA - %(playlist_title)s [%(channel_id)s].%(ext)s",
+					"https://www.youtube.com/channel/UCYO_jab_esuFRV4b17AJtAw/videos",
+				},
+				output: "yt-dlp --skip-download --write-info-json --playlist-items 0 --restrict-filenames --output /downloads/%(uploader)s/%(uploader)s - NA - %(playlist_title)s [%(channel_id)s].%(ext)s https://www.youtube.com/channel/UCYO_jab_esuFRV4b17AJtAw/videos",
+			},
+		},
+		{
+			name: "channel sync flags",
+			command: ytdl.NewCommand(
+				"yt-dlp",
+				ytdl.WithConvertThumbnails("jpg"),
+				ytdl.WithEmbedChapters(),
+				ytdl.WithWriteAutoSubs(),
+				ytdl.WithSubFormat("srt/best"),
+			),
+			expected: struct {
+				bin    string
+				args   []string
+				output string
+			}{
+				bin: "yt-dlp",
+				args: []string{
+					"--convert-thumbnails", "jpg",
+					"--embed-chapters",
+					"--write-auto-subs",
+					"--sub-format", "srt/best",
+				},
+				output: "yt-dlp --convert-thumbnails jpg --embed-chapters --write-auto-subs --sub-format srt/best",
+			},
+		},
+		{
 			name: "TheFrenchGhostys playlist script",
 			command: ytdl.NewCommand(
 				"yt-dlp",

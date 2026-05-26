@@ -256,3 +256,52 @@ func WithJSRuntime(runtime string) CommandOption {
 		cmd.args = append(cmd.args, "--js-runtimes", runtime)
 	}
 }
+
+// Restrict filenames to ASCII-only with underscores in place of spaces
+func WithRestrictFilenames() CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--restrict-filenames")
+	}
+}
+
+// Convert downloaded thumbnails to the given image format (e.g. "jpg")
+func WithConvertThumbnails(format string) CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--convert-thumbnails", format)
+	}
+}
+
+// Embed chapter markers into the merged output file
+func WithEmbedChapters() CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--embed-chapters")
+	}
+}
+
+// Write auto-generated subtitles to disk
+func WithWriteAutoSubs() CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--write-auto-subs")
+	}
+}
+
+// Preferred subtitle format(s), e.g. "srt/best"
+func WithSubFormat(format string) CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--sub-format", format)
+	}
+}
+
+// Do not download the video itself (metadata-only run)
+func WithSkipDownload() CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--skip-download")
+	}
+}
+
+// Restrict downloads to specific playlist indices, e.g. "0" for metadata only
+func WithPlaylistItems(items string) CommandOption {
+	return func(cmd *Command) {
+		cmd.args = append(cmd.args, "--playlist-items", items)
+	}
+}
