@@ -249,6 +249,13 @@ func (ytdlClient *YTDLPClient) bootstrapChannel(ctx context.Context, channelID, 
 		WithNoProgress(),
 		WithSkipDownload(),
 		WithWriteInfoJSON(),
+		// Also write the channel banner/avatar alongside the info.json so
+		// the jellyfin-youtube-metadata-plugin's local image provider
+		// finds it. The plugin walks the show root for *.jpg / *.webp
+		// matching a 24-char YouTube channel ID inside [brackets], which
+		// is exactly what our JellyfinInfoTemplate produces.
+		WithWriteThumbnail(),
+		WithConvertThumbnails("jpg"),
 		WithPlaylistItems("0"),
 		WithRestrictFilenames(),
 		WithOutputTemplate(bootstrapTemplate),
