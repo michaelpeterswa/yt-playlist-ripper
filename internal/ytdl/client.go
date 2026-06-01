@@ -263,11 +263,68 @@ func (ytdlClient *YTDLPClient) bootstrapChannel(ctx context.Context, channelID, 
 	}
 
 	res := ytdlClient.execute(ctx, label, NewCommand("yt-dlp", opts...))
+
+	// A channel with no public Videos tab (Shorts/Live-only, or uploads
+	// hidden) makes yt-dlp exit non-zero with a known, benign ERROR. There's
+	// nothing to bootstrap, so skip it quietly instead of logging an ERROR
+	// and firing a failure notification. We don't write the sentinel: if the
+	// channel later gains a Videos tab, a future tick will pick it up.
+	if benignBootstrapSkip(res) {
+		slog.Info("skipping channel bootstrap: channel has no Videos tab",
+			slog.String("channel", channelID),
+			slog.String("target", label),
+		)
+		return false
+	}
+
 	ytdlClient.reportResult(ctx, label, res)
 	if res.waitErr == nil && !res.sawError {
 		ytdlClient.writeChannelImages(ctx, channelID)
 		ytdlClient.markChannelBootstrapped(channelID)
 		return true
+	}
+	return false
+}
+
+// benignBootstrapErrorMarkers are substrings of yt-dlp ERROR lines that, when
+// they are the *only* errors a channel bootstrap produced, indicate an
+// expected, skippable condition rather than a real failure. The bootstrap
+// always targets a channel's /videos tab, so "no Videos tab" is the relevant
+// case.
+var benignBootstrapErrorMarkers = []string{
+	"does not have a videos tab",
+}
+
+// benignBootstrapSkip reports whether a bootstrap execResult failed solely
+// because of a benign, expected condition (see benignBootstrapErrorMarkers).
+// It returns false when there were no errors at all, or when any captured
+// ERROR line is something other than a benign marker — so genuinely broken
+// invocations still surface as real failures.
+func benignBootstrapSkip(r execResult) bool {
+	if !r.sawError {
+		return false
+	}
+	sawBenign := false
+	for _, line := range r.capturedIssues {
+		if !strings.HasPrefix(line, "ERROR:") {
+			continue // WARNING lines don't affect the classification
+		}
+		if matchesAny(line, benignBootstrapErrorMarkers) {
+			sawBenign = true
+			continue
+		}
+		return false // a real error is present alongside the benign one
+	}
+	return sawBenign
+}
+
+// matchesAny reports whether line contains any of markers, case-insensitively.
+func matchesAny(line string, markers []string) bool {
+	lower := strings.ToLower(line)
+	for _, m := range markers {
+		if strings.Contains(lower, m) {
+			return true
+		}
 	}
 	return false
 }
