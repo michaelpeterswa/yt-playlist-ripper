@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/michaelpeterswa/yt-playlist-ripper/internal/channelimage"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/config"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/lockmap"
 	"github.com/michaelpeterswa/yt-playlist-ripper/internal/notifier"
@@ -262,10 +265,54 @@ func (ytdlClient *YTDLPClient) bootstrapChannel(ctx context.Context, channelID, 
 	res := ytdlClient.execute(ctx, label, NewCommand("yt-dlp", opts...))
 	ytdlClient.reportResult(ctx, label, res)
 	if res.waitErr == nil && !res.sawError {
+		ytdlClient.writeChannelImages(ctx, channelID)
 		ytdlClient.markChannelBootstrapped(channelID)
 		return true
 	}
 	return false
+}
+
+// writeChannelImages derives poster.*/backdrop.* for a channel from the
+// info.json the bootstrap pass just wrote and drops them into the show root,
+// so Jellyfin's local image provider can display channel art without the
+// metadata plugin or a YouTube Data API key. Best-effort: any failure is
+// logged and does not fail the bootstrap (the sentinel still gets written).
+func (ytdlClient *YTDLPClient) writeChannelImages(ctx context.Context, channelID string) {
+	// The bootstrap output template lands the info.json one level under the
+	// output root as "{uploader}/{uploader} - NA - {title} [{channelID}].info.json".
+	pattern := filepath.Join(ytdlClient.c.OutputRoot, "*", "* - NA - *["+channelID+"].info.json")
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) == 0 {
+		slog.Warn("could not locate channel info.json for image backfill",
+			slog.String("channel", channelID),
+			slog.String("pattern", pattern),
+		)
+		return
+	}
+
+	infoPath := matches[0]
+	destDir := filepath.Dir(infoPath)
+	thumbs, err := channelimage.ReadThumbnails(infoPath)
+	if err != nil {
+		slog.Warn("could not read channel thumbnails", slog.String("info_json", infoPath), slog.String("error", err.Error()))
+		return
+	}
+
+	hc := &http.Client{Timeout: 30 * time.Second}
+	if poster, ok := channelimage.SelectPoster(thumbs); ok {
+		if path, written, err := channelimage.Download(ctx, hc, poster.URL, destDir, channelimage.PosterStem, false); err != nil {
+			slog.Warn("could not write channel poster", slog.String("channel", channelID), slog.String("error", err.Error()))
+		} else if written {
+			slog.Info("wrote channel poster", slog.String("path", path))
+		}
+	}
+	if backdrop, ok := channelimage.SelectBackdrop(thumbs); ok {
+		if path, written, err := channelimage.Download(ctx, hc, backdrop.URL, destDir, channelimage.BackdropStem, false); err != nil {
+			slog.Warn("could not write channel backdrop", slog.String("channel", channelID), slog.String("error", err.Error()))
+		} else if written {
+			slog.Info("wrote channel backdrop", slog.String("path", path))
+		}
+	}
 }
 
 // enumeratePlaylistChannels lists the unique channel IDs that appear in a
