@@ -42,6 +42,7 @@ local provider. The on-disk shape becomes:
 {OUTPUT_ROOT}/
 └── {uploader}/                                       # one Show per channel
     ├── {uploader} - NA - {playlist_title} [{channel_id}].info.json
+    ├── {uploader} - NA - {playlist_title} [{channel_id}].jpg   # channel avatar (Show poster)
     └── Season {YYYY}/
         ├── {uploader} - {YYYYMMDD} - {title} [{id}].mkv
         ├── {uploader} - {YYYYMMDD} - {title} [{id}].info.json
@@ -51,9 +52,11 @@ local provider. The on-disk shape becomes:
 A single playlist can contain videos from many channels — they get split
 into the correct show folder by uploader automatically. For every channel
 that appears in the playlist, a one-shot metadata pass writes the
-channel-level `info.json` at the show root. That bootstrap is gated by a
-sentinel under `{OUTPUT_ROOT}/.bootstrap/` so we don't re-hit YouTube on
-every tick; delete a sentinel to force a re-bootstrap of that channel.
+channel-level `info.json` plus its avatar `.jpg` at the show root. That
+bootstrap is gated by a sentinel under `{OUTPUT_ROOT}/.bootstrap/` so we
+don't re-hit YouTube on every tick; delete a sentinel (or the whole
+`.bootstrap/` directory) to force a re-bootstrap — e.g. to backfill
+missing channel images on a library bootstrapped by an older version.
 
 ```
 docker run \
