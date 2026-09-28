@@ -28,7 +28,7 @@ COPY --from=stage-bun /usr/local/bin/bun /usr/local/bin/bun
 RUN apk update && \
     apk add --no-cache ffmpeg && \
     pip install --no-cache-dir --break-system-packages \
-        "yt-dlp[default,curl-cffi]==2026.3.17"
+        "yt-dlp[default,curl-cffi]==2026.8.19"
 
 COPY --from=stage-compile /go/src/app/yt-playlist-ripper /
 CMD ["/yt-playlist-ripper"]
